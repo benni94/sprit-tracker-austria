@@ -1,15 +1,7 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import requests
 
 app = Flask(__name__)
-
-# Koordinaten für Hohenems
-LAT = "47.3615"
-LON = "9.6917"
-URL = f"https://api.e-control.at/sprit/1.0/search/gas-stations/by-address?latitude={LAT}&longitude={LON}&fuelType=SUP&includeClosed=false"
-
-# Deine Favoriten
-FAVORITEN_KEYWORDS = ["JET", "OIL!"]
 
 @app.route('/')
 def index():
@@ -17,37 +9,83 @@ def index():
 
 @app.route('/api/prices')
 def get_prices():
+    # Holt den Suchbegriff vom Browser
+    query = request.args.get('q', '').strip()
+    fuel_type = request.args.get('fuel', 'SUP')
+
+    # Wenn keine Abfrage vorhanden ist, nichts zurückgeben
+    if not query:
+        return jsonify([])
+    
     try:
-        response = requests.get(URL, timeout=10)
-        data = response.json()
-        
+        # Schritt 1: Adresse über Nominatim in Koordinaten umwandeln
+        nominatim_url = "https://nominatim.openstreetmap.org/search"
+        nominatim_params = {
+            "q": query,
+            "format": "json",
+            "limit": 1
+        }
+        nominatim_headers = {
+            "User-Agent": "sprit-tracker/1.0"
+        }
+        nominatim_response = requests.get(nominatim_url, params=nominatim_params, headers=nominatim_headers, timeout=10)
+        nominatim_data = nominatim_response.json()
+
+        if not nominatim_data or len(nominatim_data) == 0:
+            return jsonify({"error": "Ort nicht gefunden"}), 404
+
+        lat = nominatim_data[0].get('lat')
+        lon = nominatim_data[0].get('lon')
+
+        if not lat or not lon:
+            return jsonify({"error": "Koordinaten nicht gefunden"}), 404
+
+        # Schritt 2: E-Control API mit Koordinaten aufrufen
+        sprit_url = "https://api.e-control.at/sprit/1.0/search/gas-stations/by-address"
+        sprit_params = {
+            "address": query,
+            "fuelType": fuel_type,
+            "latitude": lat,
+            "longitude": lon
+        }
+        sprit_response = requests.get(sprit_url, params=sprit_params, timeout=10)
+        data = sprit_response.json()
+
+        if not isinstance(data, list):
+            return jsonify({"error": "Ungültige API-Antwort", "response": data}), 500
+
         stations = []
-        for item in data:
+        for index, item in enumerate(data):
             name = item.get('name', 'Unbekannt')
-            address = item.get('address', {}).get('street', 'Unbekannte Straße')
+            address_data = item.get('address', {})
+            street = address_data.get('street', '')
+            city = address_data.get('city', '')
+            full_address = f"{street}, {city}" if street else city
             
-            # Fehlerquelle behoben: Sicherstellen, dass 'prices' existiert und nicht leer ist
             prices_list = item.get('prices', [])
             if prices_list and len(prices_list) > 0:
                 price = f"{prices_list[0].get('amount', 0.0):.3f} €"
-                sort_price = prices_list[0].get('amount', 9.99) # Fallback für Sortierung
+                sort_price = prices_list[0].get('amount', 9.99)
             else:
-                price = "Geschlossen / Kein Preis"
-                sort_price = 9.99  # Sortiert Tankstellen ohne Preis nach ganz unten
-            
-            # Prüfen, ob es ein Favorit ist
-            is_fav = any(fav.lower() in name.lower() for fav in FAVORITEN_KEYWORDS)
+                price = "Geschlossen"
+                sort_price = 9.99
             
             stations.append({
                 'name': name,
-                'address': address,
+                'address': full_address,
                 'price': price,
                 'sort_price': sort_price,
-                'is_fav': is_fav
+                'is_top': False # Wird gleich gesetzt
             })
             
-        # Favoriten nach oben sortieren, danach nach dem numerischen Preis
-        stations.sort(key=lambda x: (not x['is_fav'], x['sort_price']))
+        # Nach Preis sortieren
+        stations.sort(key=lambda x: x['sort_price'])
+        
+        # Die günstigsten zwei als "Top" markieren
+        for i in range(min(2, len(stations))):
+            if stations[i]['price'] != "Geschlossen":
+                stations[i]['is_top'] = True
+                
         return jsonify(stations)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

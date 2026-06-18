@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Spritpreis Tracker Hohenems</title>
+    <title>Spritpreis Tracker Österreich</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -17,6 +17,36 @@
             margin: 0 auto;
         }
 
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            padding: 10px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 5px;
+            flex: 1;
+        }
+
+        button {
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button.active {
+            background: #00ffcc;
+            color: #000;
+            font-weight: bold;
+        }
+
         .station {
             background: #2a2a2a;
             padding: 15px;
@@ -27,8 +57,9 @@
             align-items: center;
         }
 
-        .fav {
+        .top-winner {
             border: 2px solid #ffcc00;
+            background: #332a15;
         }
 
         .price {
@@ -37,7 +68,7 @@
             color: #00ffcc;
         }
 
-        .fav .price {
+        .top-winner .price {
             color: #ffcc00;
         }
 
@@ -45,34 +76,97 @@
             color: #ffcc00;
             margin-right: 5px;
         }
+
+        #loader {
+            text-align: center;
+            color: #aaa;
+            margin-top: 20px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h2>Spritpreise Hohenems (Super)</h2>
+        <h2>Spritpreise Österreich</h2>
+
+        <div class="controls">
+            <input type="text" id="searchQuery" placeholder="Ort oder PLZ (z.B. Hohenems)">
+            <button id="btnSUP" class="active" onclick="changeFuel('SUP')">Super</button>
+            <button id="btnDIE" onclick="changeFuel('DIE')">Diesel</button>
+            <button onclick="search()">Suchen</button>
+        </div>
+
         <div id="loader">Lade Preise...</div>
         <div id="stations"></div>
     </div>
+
     <script>
-        fetch('/api/prices')
-            .then(res => res.json())
-            .then(data => {
+        let currentFuel = 'SUP';
+
+        const savedCity = localStorage.getItem('sprit_saved_city') || '';
+        document.getElementById('searchQuery').value = savedCity;
+        if (!savedCity) {
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function changeFuel(type) {
+            currentFuel = type;
+            document.getElementById('btnSUP').classList.toggle('active', type === 'SUP');
+            document.getElementById('btnDIE').classList.toggle('active', type === 'DIE');
+            search();
+        }
+
+        function search() {
+            const query = document.getElementById('searchQuery').value.trim();
+            if (!query) {
                 document.getElementById('loader').style.display = 'none';
-                const container = document.getElementById('stations');
-                data.forEach(s => {
-                    const div = document.createElement('div');
-                    div.className = `station ${s.is_fav ? 'fav' : ''}`;
-                    div.innerHTML = `
-                        <div>
-                            <strong>${s.is_fav ? '<span class="star">★</span>' : ''}${s.name}</strong><br>
-                            <small style="color:#aaa">${s.address}</small>
-                        </div>
-                        <div class="price">${s.price}</div>
-                    `;
-                    container.appendChild(div);
+                document.getElementById('stations').innerHTML = '<div>Bitte Ort oder PLZ eingeben.</div>';
+                return;
+            }
+            localStorage.setItem('sprit_saved_city', query);
+
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('stations').innerHTML = '';
+
+            fetch(`/api/prices?q=${encodeURIComponent(query)}&fuel=${currentFuel}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('loader').style.display = 'none';
+                    const container = document.getElementById('stations');
+
+                    if (data.length === 0 || data.error) {
+                        container.innerHTML = '<div>Keine Stationen gefunden oder Fehler bei der Suche.</div>';
+                        return;
+                    }
+
+                    data.forEach(s => {
+                        const div = document.createElement('div');
+                        div.className = `station${s.is_top ? ' top-winner' : ''}`;
+                        div.innerHTML = `
+                            <div>
+                                <div>${s.is_top ? '<span class="star">★</span>' : ''}${s.name}</div>
+                                <div>${s.address || ''}</div>
+                            </div>
+                            <div class="price">${s.price}</div>
+                        `;
+                        container.appendChild(div);
+                    });
+                })
+                .catch(() => {
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('stations').innerHTML = '<div>Fehler beim Laden der Preise.</div>';
                 });
-            });
+        }
+
+        document.getElementById('searchQuery').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                search();
+            }
+        });
+
+        if (savedCity) {
+            search();
+        }
     </script>
 </body>
 
