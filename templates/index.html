@@ -13,8 +13,8 @@
         }
 
         .container {
-            max-width: 600px;
             margin: 0 auto;
+            font-size: xxx-large;
         }
 
         .controls {
@@ -39,6 +39,7 @@
             color: #fff;
             border-radius: 5px;
             cursor: pointer;
+            font-size: xx-large;
         }
 
         button.active {
@@ -81,6 +82,26 @@
             text-align: center;
             color: #aaa;
             margin-top: 20px;
+        }
+
+        .maps-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #00ffcc;
+            text-decoration: none;
+            font-size: 0.7em;
+            border: 1px solid #00ffcc;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .maps-link:hover {
+            background: #00ffcc;
+            color: #000;
+        }
+
+        #searchQuery {
+            font-size: xxx-large;
         }
     </style>
 </head>
@@ -142,10 +163,13 @@
                     data.forEach(s => {
                         const div = document.createElement('div');
                         div.className = `station${s.is_top ? ' top-winner' : ''}`;
+                        const city = (s.address ? s.address.split(',').pop().trim() : '') || query;
+                        const mapsQuery = encodeURIComponent(`${s.name} ${city}`.trim());
                         div.innerHTML = `
                             <div>
                                 <div>${s.is_top ? '<span class="star">★</span>' : ''}${s.name}</div>
                                 <div>${s.address || ''}</div>
+                                <a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${mapsQuery}" target="_blank" rel="noopener noreferrer">📍 Karte</a>
                             </div>
                             <div class="price">${s.price}</div>
                         `;
