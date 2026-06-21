@@ -87,6 +87,40 @@
             overflow-wrap: anywhere;
         }
 
+        .station-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 4px;
+        }
+
+        .station-address {
+            color: #aaa;
+            font-size: 0.85em;
+            line-height: 1.3;
+            margin-bottom: 2px;
+        }
+
+        .station-city {
+            color: #888;
+            font-size: 0.85em;
+            line-height: 1.3;
+            margin-bottom: 6px;
+        }
+
+        .fuel-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .fuel-label {
+            font-size: 0.75em;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         .top-winner {
             border: 2px solid #ffcc00;
             background: #332a15;
@@ -130,6 +164,43 @@
         .maps-link:hover {
             background: #00ffcc;
             color: #000;
+        }
+
+        .no-results {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .no-results-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #ff6666;
+            margin-bottom: 8px;
+        }
+
+        .no-results-hint {
+            color: #aaa;
+            font-size: 0.9em;
+            margin-bottom: 16px;
+        }
+
+        .no-results-suggestions {
+            color: #ccc;
+        }
+
+        .suggestion-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .suggestion-buttons button {
+            background: #333;
+            border: 1px solid #555;
         }
 
         #searchQuery {
@@ -204,23 +275,47 @@
                     document.getElementById('loader').style.display = 'none';
                     const container = document.getElementById('stations');
 
-                    if (data.length === 0 || data.error) {
-                        container.innerHTML = '<div>Keine Stationen gefunden oder Fehler bei der Suche.</div>';
+                    if (data.length === 0) {
+                        container.innerHTML = `
+                            <div class="no-results">
+                                <div class="no-results-title">Keine Tankstellen in „${query}" gefunden</div>
+                                <div class="no-results-hint">Die E-Control API hat in diesem Ort aktuell keine Preisdaten.</div>
+                                <div class="no-results-suggestions">
+                                    <div>Probiere eine nahegelegene größere Stadt:</div>
+                                    <div class="suggestion-buttons">
+                                        <button onclick="quickSearch('Dornbirn')">Dornbirn</button>
+                                        <button onclick="quickSearch('Bregenz')">Bregenz</button>
+                                        <button onclick="quickSearch('Hohenems')">Hohenems</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    if (data.error) {
+                        container.innerHTML = '<div class="no-results"><div class="no-results-title">Fehler bei der Suche</div><div class="no-results-hint">' + (data.error || 'Unbekannter Fehler') + '</div></div>';
                         return;
                     }
 
                     data.forEach(s => {
                         const div = document.createElement('div');
                         div.className = `station${s.is_top ? ' top-winner' : ''}`;
-                        const city = (s.address ? s.address.split(',').pop().trim() : '') || query;
-                        const mapsQuery = encodeURIComponent(`${s.name} ${city}`.trim());
+                        const mapsCity = (s.city || (s.address ? s.address.split(',').pop().trim() : '') || query);
+                        const mapsQuery = encodeURIComponent(`${s.name} ${mapsCity}`.trim());
+                        const streetLine = s.street || s.address || '';
+                        const cityLine = s.city || query || '';
                         div.innerHTML = `
                             <div>
-                                <div>${s.is_top ? '<span class="star">★</span>' : ''}${s.name}</div>
-                                <div>${s.address || ''}</div>
+                                <div class="station-name">${s.is_top ? '<span class="star">★</span>' : ''}${s.name}</div>
+                                ${streetLine ? `<div class="station-address">${streetLine}</div>` : ''}
+                                ${cityLine ? `<div class="station-city">${cityLine}</div>` : ''}
                                 <a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${mapsQuery}" target="_blank" rel="noopener noreferrer">📍 Karte</a>
                             </div>
-                            <div class="price">${s.price}</div>
+                            <div class="fuel-info">
+                                <div class="fuel-label">${s.fuel_label || ''}</div>
+                                <div class="price">${s.price}</div>
+                            </div>
                         `;
                         container.appendChild(div);
                     });
@@ -236,6 +331,11 @@
                 search();
             }
         });
+
+        function quickSearch(city) {
+            document.getElementById('searchQuery').value = city;
+            search();
+        }
 
         if (savedCity) {
             search();
