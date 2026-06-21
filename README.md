@@ -13,6 +13,66 @@ Eine kleine Flask-Webapp, die über die E-Control API aktuelle Spritpreise in Ö
 
 ---
 
+## Lokale Entwicklung (macOS)
+
+Für Tests auf deinem Mac vor dem Deploy auf CasaOS:
+
+### Voraussetzung
+
+```bash
+chmod +x run-local.sh
+```
+
+### Modus 1: Normal (frisches Image bauen)
+
+Für einen sauberen Test, der exakt dem Pi-Setup entspricht:
+
+```bash
+./run-local.sh
+```
+
+Das Script:
+
+1. Prüft ob Docker läuft
+2. Stoppt/entfernt alte Container
+3. Baut das Docker-Image neu
+4. Startet den Container auf `localhost:8085`
+5. Öffnet die App im Brave Browser
+
+### Modus 2: Dev Mode (Hot-Reload)
+
+Für aktive Entwicklung — Änderungen sind sofort sichtbar ohne Rebuild:
+
+```bash
+./run-local.sh --dev
+```
+
+Was passiert:
+
+- Dein lokaler Projektordner wird in den Container gemountet
+- Flask läuft im Debug-Modus und lädt bei Code-Änderungen automatisch neu
+- Du musst nur im Browser refreshen, nicht den Container neu bauen
+
+**Wichtig:** Ändere etwas in `app.py` oder `templates/index.html`, speichere (Ctrl+S), und drücke F5 im Browser.
+
+### Manuell (ohne Script)
+
+```bash
+# Image bauen
+docker build -t sprit-tracker .
+
+# Normal starten
+docker run -d --name sprit-test -p 8085:5000 sprit-tracker
+
+# Oder mit Hot-Reload
+docker run -d --name sprit-test -p 8085:5000 -v $(pwd):/app -e FLASK_DEBUG=true sprit-tracker
+
+# Im Browser öffnen
+open -a "Brave Browser" http://localhost:8085
+```
+
+---
+
 ## Installation auf CasaOS
 
 ### 1. Projekt auf dein CasaOS-Gerät kopieren
